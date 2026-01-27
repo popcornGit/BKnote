@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>编辑笔记 - BK专属笔记</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .editor-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+
+        .editor-title {
+            flex-grow: 1;
+            font-size: 1.5rem;
+            padding: 0.5rem;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            margin-right: 1rem;
+        }
+
+        .editor-content {
+            min-height: 400px;
+            padding: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .editor-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .editor-toolbar button {
+            background: #f0f0f0;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .editor-toolbar button:hover {
+            background: #e0e0e0;
+        }
+
+        .save-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .save-btn:hover {
+            background: #0069d9;
+        }
+
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        .back-btn:hover {
+            background: #5a6268;
+        }
+
+        .note-info {
+            color: #6c757d;
+            margin-bottom: 1rem;
+        }
+        
+        #imageUploadInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>BK专属笔记</h1>
+        <p>一个简单易用的在线笔记工具</p>
+    </header>
+
+    <div class="editor-container">
+        <a href="index.html" class="back-btn">返回列表</a>
+        <button id="saveNote" class="save-btn">保存笔记</button>
+        <button id="deleteNote" class="save-btn" style="background: #dc3545;">删除笔记</button>
+
+        <div class="note-info">
+            <small>创建时间: <span id="noteDate"></span></small>
+        </div>
+
+        <div class="editor-header">
+            <input type="text" id="noteTitle" class="editor-title" placeholder="笔记标题">
+        </div>
+
+        <div class="editor-toolbar">
+            <button id="insertImageBtn" title="插入图片">🖼️ 插入图片</button>
+            <button id="uploadLocalImageBtn" title="上传本地图片">📁 上传本地图片</button>
+            <input type="file" id="imageUploadInput" accept="image/*">
+            <button id="insertCodeBtn" title="插入代码">()}</button>
+            <button id="insertLinkBtn" title="插入链接">🔗</button>
+        </div>
+
+        <div id="editorContent" class="editor-content" contenteditable="true" placeholder="在此输入笔记内容..."></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取URL参数中的笔记ID
+            const urlParams = new URLSearchParams(window.location.search);
+            const noteId = parseInt(urlParams.get('id'));
+
+            if (!noteId) {
+                alert('未找到笔记ID');
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // 加载笔记数据
+            let notes = JSON.parse(localStorage.getItem('notes')) || [];
+            let note = notes.find(note => note.id === noteId);
+
+            if (!note) {
+                alert('未找到对应的笔记');
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // 显示笔记数据
+            document.getElementById('noteTitle').value = note.title;
+            document.getElementById('editorContent').innerHTML = processContent(note.content);
+            
+            const date = new Date(note.date);
+            document.getElementById('noteDate').textContent = date.toLocaleString();
+
+            // 保存笔记
+            document.getElementById('saveNote').addEventListener('click', function() {
+                note.title = document.getElementById('noteTitle').value;
+                note.content = document.getElementById('editorContent').innerText;
+                note.date = new Date().toISOString();
+
+                // 更新本地存储
+                const updatedNotes = notes.map(n => n.id === noteId ? note : n);
+                localStorage.setItem('notes', JSON.stringify(updatedNotes));
+
+                alert('笔记已保存！');
+            });
+
+            // 插入图片功能
+            document.getElementById('insertImageBtn').addEventListener('click', function() {
+                const imageUrl = prompt('请输入图片URL:');
+                if (imageUrl) {
+                    insertImage(imageUrl);
+                }
+            });
+
+            // 上传本地图片功能
+            document.getElementById('uploadLocalImageBtn').addEventListener('click', function() {
+                document.getElementById('imageUploadInput').click();
+            });
+
+            // 处理文件选择
+            document.getElementById('imageUploadInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    if (!file.type.match('image.*')) {
+                        alert('请选择图片文件！');
+                        return;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const imageDataUrl = e.target.result;
+                        insertImage(imageDataUrl);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // 插入图片的通用函数
+            function insertImage(src) {
+                const contentDiv = document.getElementById('editorContent');
+                const imgTag = `<img src="${src}" alt="插入的图片" style="max-width: 100%; margin: 10px 0; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
+                contentDiv.focus();
+                
+                // 在光标位置插入图片
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const tempEl = document.createElement('div');
+                    tempEl.innerHTML = imgTag;
+                    
+                    // 如果有选中内容，则替换它
+                    range.deleteContents();
+                    range.insertNode(tempEl.firstChild.cloneNode(true));
+                } else {
+                    // 如果没有选中内容，则在末尾添加
+                    contentDiv.innerHTML += imgTag;
+                }
+            }
+
+            // 插入代码功能
+            document.getElementById('insertCodeBtn').addEventListener('click', function() {
+                const codeContent = prompt('请输入代码内容:');
+                if (codeContent) {
+                    const contentDiv = document.getElementById('editorContent');
+                    const codeTag = `<pre><code>${codeContent}</code></pre>`;
+                    contentDiv.focus();
+                    
+                    // 在光标位置插入代码
+                    const selection = window.getSelection();
+                    if (selection.rangeCount > 0) {
+                        const range = selection.getRangeAt(0);
+                        const tempEl = document.createElement('div');
+                        tempEl.innerHTML = codeTag;
+                        
+                        // 如果有选中内容，则替换它
+                        range.deleteContents();
+                        range.insertNode(tempEl.firstChild.cloneNode(true));
+                    } else {
+                        // 如果没有选中内容，则在末尾添加
+                        contentDiv.innerHTML += codeTag;
+                    }
+                }
+            });
+
+            // 插入链接功能
+            document.getElementById('insertLinkBtn').addEventListener('click', function() {
+                const linkUrl = prompt('请输入链接URL:');
+                const linkText = prompt('请输入链接文本:');
+                if (linkUrl && linkText) {
+                    const contentDiv = document.getElementById('editorContent');
+                    const linkTag = `<a href="${linkUrl}" target="_blank">${linkText}</a>`;
+                    contentDiv.focus();
+                    
+                    // 在光标位置插入链接
+                    const selection = window.getSelection();
+                    if (selection.rangeCount > 0) {
+                        const range = selection.getRangeAt(0);
+                        const textNode = document.createTextNode(linkTag);
+                        
+                        // 如果有选中内容，则替换它
+                        range.deleteContents();
+                        range.insertNode(textNode);
+                    } else {
+                        // 如果没有选中内容，则在末尾添加
+                        contentDiv.innerHTML += ` ${linkTag}`;
+                    }
+                }
+            });
+
+            // 处理内容中的Markdown语法
+            function processContent(content) {
+                // 处理代码块
+                content = content.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="$1">$2</code></pre>');
+                
+                // 处理行内代码
+                content = content.replace(/`(.*?)`/g, '<code>$1</code>');
+                
+                // 处理图片和GIF（包括本地图片数据URL）
+                content = content.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" title="$1" style="max-width: 100%; margin: 10px 0; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onError="this.onerror=null;this.src=\'\';this.alt=\'无法加载图片\';">');
+                
+                // 处理视频链接
+                content = content.replace(/\[(.*?)\]\((https?:\/\/.*?\.(mp4|webm|ogg))\)/g, '<video controls width="100%"><source src="$2" type="video/$3">您的浏览器不支持视频标签。</video>');
+                
+                // 处理普通链接
+                content = content.replace(/\[(.*?)\]\((https?:\/\/.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+                
+                // 处理换行
+                content = content.replace(/\n/g, '<br>');
+                
+                return content;
+            }
+
+            // 删除笔记功能
+            document.getElementById('deleteNote').addEventListener('click', function() {
+                if (confirm('确定要删除这篇笔记吗？此操作不可撤销！')) {
+                    const updatedNotes = notes.filter(n => n.id !== noteId);
+                    localStorage.setItem('notes', JSON.stringify(updatedNotes));
+                    alert('笔记已删除！');
+                    window.location.href = 'index.html';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
