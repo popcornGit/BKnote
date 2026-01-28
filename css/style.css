@@ -178,6 +178,34 @@ main {
     text-decoration: underline;
 }
 
+.note-tags {
+    margin-bottom: 1rem;
+}
+
+.tag {
+    display: inline-block;
+    background-color: #e3f2fd;
+    color: #1976d2;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin: 0 0.25rem 0.25rem 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid #bbdefb;
+}
+
+.tag:hover {
+    background-color: #bbdefb;
+    transform: translateY(-1px);
+}
+
+.no-tags {
+    color: #999;
+    font-style: italic;
+    font-size: 0.8rem;
+}
+
 .note-actions {
     display: flex;
     justify-content: space-between;

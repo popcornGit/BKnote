@@ -112,6 +112,48 @@
             background: #e0e0e0;
         }
         
+        .tags-container {
+            margin-bottom: 1rem;
+        }
+        
+        .tags-input-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tag-input {
+            flex-grow: 1;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        .tag-item {
+            display: inline-block;
+            background-color: #e3f2fd;
+            color: #1976d2;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin: 0 0.25rem 0.25rem 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid #bbdefb;
+        }
+        
+        .tag-item:hover {
+            background-color: #bbdefb;
+            transform: translateY(-1px);
+        }
+        
+        .remove-tag {
+            margin-left: 0.5rem;
+            color: #f44336;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -132,6 +174,15 @@
 
         <div class="editor-header">
             <input type="text" id="noteTitle" class="editor-title" placeholder="笔记标题">
+        </div>
+
+        <!-- 标签编辑区域 -->
+        <div class="tags-container">
+            <label for="tagInput"><strong>标签:</strong></label>
+            <div class="tags-input-container">
+                <input type="text" id="tagInput" class="tag-input" placeholder="输入标签，回车添加...">
+                <div id="tagsList" class="tags-list"></div>
+            </div>
         </div>
 
         <div id="toolbar">
@@ -206,6 +257,60 @@
             
             const date = new Date(note.date);
             document.getElementById('noteDate').textContent = date.toLocaleString();
+            
+            // 初始化标签功能
+            const tagInput = document.getElementById('tagInput');
+            const tagsList = document.getElementById('tagsList');
+            
+            // 如果笔记没有tags属性，初始化为空数组
+            if (!note.hasOwnProperty('tags')) {
+                note.tags = [];
+            }
+            
+            // 渲染当前标签
+            function renderTags() {
+                tagsList.innerHTML = '';
+                if (note.tags && note.tags.length > 0) {
+                    note.tags.forEach(tag => {
+                        const tagSpan = document.createElement('span');
+                        tagSpan.className = 'tag-item';
+                        tagSpan.innerHTML = `${tag} <span class="remove-tag" data-tag="${tag}">×</span>`;
+                        tagsList.appendChild(tagSpan);
+                    });
+                    
+                    // 为删除按钮添加事件
+                    document.querySelectorAll('.remove-tag').forEach(removeBtn => {
+                        removeBtn.addEventListener('click', function() {
+                            const tagToRemove = this.getAttribute('data-tag');
+                            note.tags = note.tags.filter(tag => tag !== tagToRemove);
+                            renderTags();
+                            updateNoteInStorage();
+                        });
+                    });
+                } else {
+                    tagsList.innerHTML = '<span class="no-tags">暂无标签</span>';
+                }
+            }
+            
+            // 添加标签
+            function addTag(tag) {
+                if (tag && !note.tags.includes(tag)) {
+                    note.tags.push(tag);
+                    renderTags();
+                    updateNoteInStorage();
+                    tagInput.value = '';
+                }
+            }
+            
+            // 输入框回车添加标签
+            tagInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && this.value.trim()) {
+                    addTag(this.value.trim());
+                }
+            });
+            
+            // 初始化标签显示
+            renderTags();
 
             // 保存笔记
             document.getElementById('saveNote').addEventListener('click', function() {
@@ -293,6 +398,11 @@
                 // 生成Markdown内容
                 const markdownContent = `# ${noteTitle}\n\n创建时间: ${new Date(note.date).toLocaleString()}\n\n${noteContent}`;
                 
+                // 添加标签信息到导出内容
+                if (note.tags && note.tags.length > 0) {
+                    markdownContent += `\n\n标签: ${note.tags.join(', ')}`;
+                }
+                
                 // 添加Markdown文件
                 noteFolder.file(`${noteTitle.replace(/[<>:"/\\|?*]/g, '_')}.md`, markdownContent);
                 
@@ -323,6 +433,13 @@
                 note.title = this.value;
                 updateNoteInStorage();
             }, 1000));
+            
+            // 标签输入变化时自动保存
+            document.getElementById('tagInput').addEventListener('blur', function() {
+                if (this.value.trim()) {
+                    addTag(this.value.trim());
+                }
+            });
             
             // 编辑器内容改变时自动保存
             quill.on('text-change', debounce(function(delta, oldDelta, source) {

@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchNotes');
     const importNotesBtn = document.getElementById('importNotesBtn');
     const importNotesInput = document.getElementById('importNotes');
+    let currentTagFilter = ''; // 当前标签过滤器
     
     // 初始化示例笔记（如果本地存储为空）
     if (!localStorage.getItem('notes')) {
@@ -13,13 +14,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 id: Date.now(),
                 title: "欢迎使用 BK专属笔记",
                 content: "这是一个功能丰富的笔记应用。你可以创建、编辑和删除笔记，还支持插入图片、代码、GIF和视频链接。",
-                date: new Date().toISOString()
+                date: new Date().toISOString(),
+                tags: ["欢迎", "介绍", "帮助"]
             },
             {
                 id: Date.now() + 1,
                 title: "如何使用高级功能",
                 content: "1. 点击'新建笔记'按钮创建新笔记\n2. 使用搜索框查找笔记\n3. 在笔记中插入图片、代码块、GIF或视频链接\n\n例如：\n\n插入图片：![描述](图片URL)\n插入代码：``javascript\nconsole.log('Hello');\n```\n插入GIF：![GIF](gif_url)\n插入视频链接：[视频](视频URL)",
-                date: new Date().toISOString()
+                date: new Date().toISOString(),
+                tags: ["功能", "教程", "说明"]
             }
         ];
         localStorage.setItem('notes', JSON.stringify(sampleNotes));
@@ -27,6 +30,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 渲染所有笔记
     function renderNotes(notes = JSON.parse(localStorage.getItem('notes'))) {
+        // 应用标签过滤
+        if(currentTagFilter) {
+            notes = notes.filter(note => note.tags && note.tags.includes(currentTagFilter));
+        }
+        
         notesContainer.innerHTML = '';
         
         if (notes.length === 0) {
@@ -45,6 +53,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // 将内容中的Markdown语法转换为HTML
             const processedContent = processContent(note.content);
             
+            // 生成标签HTML
+            const tagsHtml = note.tags && note.tags.length > 0 
+                ? note.tags.map(tag => `<span class="tag" data-tag="${tag}" onclick="filterByTag('${tag}')">${tag}</span>`).join(' ')
+                : '<span class="no-tags">无标签</span>';
+            
             noteElement.innerHTML = `
                 <div class="note-header">
                     <h3 class="note-title">${note.title}</h3>
@@ -54,6 +67,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="note-content">${processedContent}</div>
+                <div class="note-tags">
+                    ${tagsHtml}
+                </div>
                 <div class="note-actions">
                     <small>创建时间: <span class="date">${formattedDate}</span></small>
                     <button class="delete-note" data-id="${note.id}">删除</button>
@@ -62,10 +78,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 添加点击事件，跳转到编辑页面
             noteElement.addEventListener('click', function(e) {
-                // 如果点击的是删除按钮或工具栏按钮，则不跳转
+                // 如果点击的是删除按钮、工具栏按钮或标签，则不跳转
                 if (e.target.classList.contains('delete-note') || 
                     e.target.classList.contains('insert-image-btn') || 
-                    e.target.classList.contains('insert-code-btn')) {
+                    e.target.classList.contains('insert-code-btn') ||
+                    e.target.classList.contains('tag')) {
                     e.stopPropagation(); // 阻止冒泡，防止触发跳转
                     return;
                 }
@@ -113,6 +130,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
+        
+        // 更新标签云
+        updateTagsCloud();
     }
     
     // 处理内容中的Markdown语法
@@ -144,7 +164,8 @@ document.addEventListener('DOMContentLoaded', function() {
             id: Date.now(),
             title: "新笔记",
             content: "在此处输入笔记内容...\n\n提示：您可以插入图片、代码、GIF和视频链接。\n- 点击笔记进入编辑页面\n- 在编辑页面可使用更多功能",
-            date: new Date().toISOString()
+            date: new Date().toISOString(),
+            tags: [] // 新笔记默认没有标签
         };
         
         const notes = JSON.parse(localStorage.getItem('notes'));
@@ -163,13 +184,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 更新笔记
-    function updateNote(id, title, content) {
+    function updateNote(id, title, content, tags = []) {
         const notes = JSON.parse(localStorage.getItem('notes'));
         const noteIndex = notes.findIndex(note => note.id === id);
         
         if (noteIndex !== -1) {
             notes[noteIndex].title = title.trim() || "未命名笔记";
             notes[noteIndex].content = content;
+            notes[noteIndex].tags = Array.isArray(tags) ? tags : [];
             notes[noteIndex].date = new Date().toISOString();
             localStorage.setItem('notes', JSON.stringify(notes));
         }
@@ -185,7 +207,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const filteredNotes = allNotes.filter(note => 
             note.title.toLowerCase().includes(query.toLowerCase()) || 
-            note.content.toLowerCase().includes(query.toLowerCase())
+            note.content.toLowerCase().includes(query.toLowerCase()) ||
+            (note.tags && note.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase())))
         );
         
         renderNotes(filteredNotes);
@@ -230,6 +253,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // 合并导入的笔记，如果ID冲突则更新
                         importedNotes.forEach(importedNote => {
+                            // 确保导入的笔记包含tags字段
+                            if (!importedNote.hasOwnProperty('tags')) {
+                                importedNote.tags = [];
+                            }
+                            
                             const existingIndex = existingNotes.findIndex(note => note.id === importedNote.id);
                             if (existingIndex !== -1) {
                                 // 更新现有笔记
@@ -326,7 +354,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 id: Date.now() + Math.floor(Math.random() * 1000000), // 避免ID冲突
                                                 title: title,
                                                 content: noteContent,
-                                                date: new Date().toISOString()
+                                                date: new Date().toISOString(),
+                                                tags: [] // ZIP导入的笔记默认无标签
                                             };
                                         });
                                     } else {
@@ -335,7 +364,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                             id: Date.now() + Math.floor(Math.random() * 1000000), // 避免ID冲突
                                             title: title,
                                             content: noteContent,
-                                            date: new Date().toISOString()
+                                            date: new Date().toISOString(),
+                                            tags: [] // ZIP导入的笔记默认无标签
                                         };
                                     }
                                 })
@@ -396,6 +426,50 @@ document.addEventListener('DOMContentLoaded', function() {
         // 重置文件输入框
         e.target.value = '';
     });
+    
+    // 全局函数，用于标签过滤
+    window.filterByTag = function(tag) {
+        currentTagFilter = currentTagFilter === tag ? '' : tag;
+        renderNotes();
+    };
+    
+    // 更新标签云的函数
+    window.updateTagsCloud = function() {
+        // 获取所有笔记的标签
+        const notes = JSON.parse(localStorage.getItem('notes')) || [];
+        const allTags = new Set();
+        
+        // 收集所有标签
+        notes.forEach(note => {
+            if (note.tags && Array.isArray(note.tags)) {
+                note.tags.forEach(tag => {
+                    if (tag.trim()) {
+                        allTags.add(tag.trim());
+                    }
+                });
+            }
+        });
+        
+        // 获取标签云显示元素
+        const tagsListElement = document.getElementById('tagsList');
+        
+        if (!tagsListElement) return; // 如果页面没有标签云元素，则不处理
+        
+        if (allTags.size === 0) {
+            tagsListElement.textContent = '暂无标签';
+            return;
+        }
+        
+        // 创建标签云HTML
+        const tagsArray = Array.from(allTags);
+        const tagsHtml = tagsArray.map(tag => {
+            // 高亮当前被过滤的标签
+            const activeClass = currentTagFilter === tag ? ' tag-active' : '';
+            return `<span class="tag${activeClass}" onclick="filterByTag('${tag}')">${tag}</span>`;
+        }).join(' ');
+        
+        tagsListElement.innerHTML = tagsHtml;
+    };
     
     // 事件监听器
     if (newNoteBtn) {
