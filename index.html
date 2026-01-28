@@ -16,6 +16,8 @@
         <div class="controls">
             <button id="newNote">新建笔记</button>
             <input type="text" id="searchNotes" placeholder="搜索笔记...">
+            <input type="file" id="importNotes" accept=".json,.zip" style="display: none;">
+            <button id="importNotesBtn">导入笔记</button>
         </div>
 
         <div id="notesContainer">
@@ -32,6 +34,7 @@
         <p>&copy; 2026 BK专属笔记. 所有权利保留.</p>
     </footer>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="js/script.js"></script>
 </body>
 </html>

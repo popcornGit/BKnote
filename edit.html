@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>编辑笔记 - BK专属笔记</title>
     <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <style>
         .editor-container {
             max-width: 800px;
@@ -28,32 +29,20 @@
             margin-right: 1rem;
         }
 
-        .editor-content {
+        .ql-editor {
             min-height: 400px;
-            padding: 1rem;
-            border: 2px solid #ddd;
-            border-radius: 4px;
-            margin-bottom: 1.5rem;
+            font-size: 1rem;
             line-height: 1.6;
         }
 
-        .editor-toolbar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .editor-toolbar button {
-            background: #f0f0f0;
-            border: none;
+        .ql-container {
+            border: 2px solid #ddd;
             border-radius: 4px;
-            padding: 8px 12px;
-            cursor: pointer;
         }
 
-        .editor-toolbar button:hover {
-            background: #e0e0e0;
+        .ql-toolbar {
+            border: 2px solid #ddd !important;
+            border-radius: 4px 4px 0 0 !important;
         }
 
         .save-btn {
@@ -87,6 +76,20 @@
             background: #5a6268;
         }
 
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+        }
+
         .note-info {
             color: #6c757d;
             margin-bottom: 1rem;
@@ -95,6 +98,20 @@
         #imageUploadInput {
             display: none;
         }
+        
+        .toolbar-button {
+            background: #f0f0f0;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            margin: 0 2px;
+        }
+        
+        .toolbar-button:hover {
+            background: #e0e0e0;
+        }
+        
     </style>
 </head>
 <body>
@@ -106,7 +123,8 @@
     <div class="editor-container">
         <a href="index.html" class="back-btn">返回列表</a>
         <button id="saveNote" class="save-btn">保存笔记</button>
-        <button id="deleteNote" class="save-btn" style="background: #dc3545;">删除笔记</button>
+        <button id="deleteNote" class="delete-btn">删除笔记</button>
+        <button id="exportNote" class="save-btn" style="background: #28a745;">导出笔记</button>
 
         <div class="note-info">
             <small>创建时间: <span id="noteDate"></span></small>
@@ -116,17 +134,42 @@
             <input type="text" id="noteTitle" class="editor-title" placeholder="笔记标题">
         </div>
 
-        <div class="editor-toolbar">
-            <button id="insertImageBtn" title="插入图片">🖼️ 插入图片</button>
-            <button id="uploadLocalImageBtn" title="上传本地图片">📁 上传本地图片</button>
-            <input type="file" id="imageUploadInput" accept="image/*">
-            <button id="insertCodeBtn" title="插入代码">()}</button>
-            <button id="insertLinkBtn" title="插入链接">🔗</button>
+        <div id="toolbar">
+            <span class="ql-formats">
+                <select class="ql-header">
+                    <option value="1">标题1</option>
+                    <option value="2">标题2</option>
+                    <option value="3">标题3</option>
+                    <option value="4">标题4</option>
+                    <option value="5">标题5</option>
+                    <option value="6">标题6</option>
+                    <option selected>正文</option>
+                </select>
+            </span>
+            <span class="ql-formats">
+                <button class="ql-bold"></button>
+                <button class="ql-italic"></button>
+                <button class="ql-underline"></button>
+                <button class="ql-strike"></button>
+            </span>
+            <span class="ql-formats">
+                <button class="ql-list" value="ordered"></button>
+                <button class="ql-list" value="bullet"></button>
+            </span>
+            <span class="ql-formats">
+                <button class="ql-link"></button>
+                <button class="ql-image"></button>
+                <button class="ql-video"></button>
+            </span>
+            <span class="ql-formats">
+                <button class="ql-clean"></button>
+            </span>
         </div>
-
-        <div id="editorContent" class="editor-content" contenteditable="true" placeholder="在此输入笔记内容..."></div>
+        <div id="editor" style="border: 2px solid #ddd; border-radius: 4px; border-top: none;"></div>
     </div>
 
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // 获取URL参数中的笔记ID
@@ -149,9 +192,17 @@
                 return;
             }
 
+            // 初始化Quill编辑器
+            const quill = new Quill('#editor', {
+                modules: {
+                    toolbar: '#toolbar',
+                },
+                theme: 'snow'
+            });
+
             // 显示笔记数据
             document.getElementById('noteTitle').value = note.title;
-            document.getElementById('editorContent').innerHTML = processContent(note.content);
+            quill.root.innerHTML = note.content;
             
             const date = new Date(note.date);
             document.getElementById('noteDate').textContent = date.toLocaleString();
@@ -159,7 +210,7 @@
             // 保存笔记
             document.getElementById('saveNote').addEventListener('click', function() {
                 note.title = document.getElementById('noteTitle').value;
-                note.content = document.getElementById('editorContent').innerText;
+                note.content = quill.root.innerHTML; // 使用innerHTML而不是innerText，以保留HTML格式
                 note.date = new Date().toISOString();
 
                 // 更新本地存储
@@ -169,133 +220,7 @@
                 alert('笔记已保存！');
             });
 
-            // 插入图片功能
-            document.getElementById('insertImageBtn').addEventListener('click', function() {
-                const imageUrl = prompt('请输入图片URL:');
-                if (imageUrl) {
-                    insertImage(imageUrl);
-                }
-            });
-
-            // 上传本地图片功能
-            document.getElementById('uploadLocalImageBtn').addEventListener('click', function() {
-                document.getElementById('imageUploadInput').click();
-            });
-
-            // 处理文件选择
-            document.getElementById('imageUploadInput').addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    if (!file.type.match('image.*')) {
-                        alert('请选择图片文件！');
-                        return;
-                    }
-                    
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const imageDataUrl = e.target.result;
-                        insertImage(imageDataUrl);
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-
-            // 插入图片的通用函数
-            function insertImage(src) {
-                const contentDiv = document.getElementById('editorContent');
-                const imgTag = `<img src="${src}" alt="插入的图片" style="max-width: 100%; margin: 10px 0; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
-                contentDiv.focus();
-                
-                // 在光标位置插入图片
-                const selection = window.getSelection();
-                if (selection.rangeCount > 0) {
-                    const range = selection.getRangeAt(0);
-                    const tempEl = document.createElement('div');
-                    tempEl.innerHTML = imgTag;
-                    
-                    // 如果有选中内容，则替换它
-                    range.deleteContents();
-                    range.insertNode(tempEl.firstChild.cloneNode(true));
-                } else {
-                    // 如果没有选中内容，则在末尾添加
-                    contentDiv.innerHTML += imgTag;
-                }
-            }
-
-            // 插入代码功能
-            document.getElementById('insertCodeBtn').addEventListener('click', function() {
-                const codeContent = prompt('请输入代码内容:');
-                if (codeContent) {
-                    const contentDiv = document.getElementById('editorContent');
-                    const codeTag = `<pre><code>${codeContent}</code></pre>`;
-                    contentDiv.focus();
-                    
-                    // 在光标位置插入代码
-                    const selection = window.getSelection();
-                    if (selection.rangeCount > 0) {
-                        const range = selection.getRangeAt(0);
-                        const tempEl = document.createElement('div');
-                        tempEl.innerHTML = codeTag;
-                        
-                        // 如果有选中内容，则替换它
-                        range.deleteContents();
-                        range.insertNode(tempEl.firstChild.cloneNode(true));
-                    } else {
-                        // 如果没有选中内容，则在末尾添加
-                        contentDiv.innerHTML += codeTag;
-                    }
-                }
-            });
-
-            // 插入链接功能
-            document.getElementById('insertLinkBtn').addEventListener('click', function() {
-                const linkUrl = prompt('请输入链接URL:');
-                const linkText = prompt('请输入链接文本:');
-                if (linkUrl && linkText) {
-                    const contentDiv = document.getElementById('editorContent');
-                    const linkTag = `<a href="${linkUrl}" target="_blank">${linkText}</a>`;
-                    contentDiv.focus();
-                    
-                    // 在光标位置插入链接
-                    const selection = window.getSelection();
-                    if (selection.rangeCount > 0) {
-                        const range = selection.getRangeAt(0);
-                        const textNode = document.createTextNode(linkTag);
-                        
-                        // 如果有选中内容，则替换它
-                        range.deleteContents();
-                        range.insertNode(textNode);
-                    } else {
-                        // 如果没有选中内容，则在末尾添加
-                        contentDiv.innerHTML += ` ${linkTag}`;
-                    }
-                }
-            });
-
-            // 处理内容中的Markdown语法
-            function processContent(content) {
-                // 处理代码块
-                content = content.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="$1">$2</code></pre>');
-                
-                // 处理行内代码
-                content = content.replace(/`(.*?)`/g, '<code>$1</code>');
-                
-                // 处理图片和GIF（包括本地图片数据URL）
-                content = content.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" title="$1" style="max-width: 100%; margin: 10px 0; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onError="this.onerror=null;this.src=\'\';this.alt=\'无法加载图片\';">');
-                
-                // 处理视频链接
-                content = content.replace(/\[(.*?)\]\((https?:\/\/.*?\.(mp4|webm|ogg))\)/g, '<video controls width="100%"><source src="$2" type="video/$3">您的浏览器不支持视频标签。</video>');
-                
-                // 处理普通链接
-                content = content.replace(/\[(.*?)\]\((https?:\/\/.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
-                
-                // 处理换行
-                content = content.replace(/\n/g, '<br>');
-                
-                return content;
-            }
-
-            // 删除笔记功能
+            // 删除笔记
             document.getElementById('deleteNote').addEventListener('click', function() {
                 if (confirm('确定要删除这篇笔记吗？此操作不可撤销！')) {
                     const updatedNotes = notes.filter(n => n.id !== noteId);
@@ -304,6 +229,127 @@
                     window.location.href = 'index.html';
                 }
             });
+            
+            // 导出单个笔记为ZIP格式
+            document.getElementById('exportNote').addEventListener('click', function() {
+                let noteContent = quill.root.innerHTML; // 使用let以便修改
+                const noteTitle = document.getElementById('noteTitle').value || '未命名笔记';
+                
+                // 创建临时容器处理图片
+                const container = document.createElement('div');
+                container.innerHTML = noteContent;
+                container.style.display = 'none';
+                document.body.appendChild(container);
+                
+                // 查找所有图片元素
+                const images = container.querySelectorAll('img');
+                const imageFilenames = [];
+                
+                images.forEach((img, index) => {
+                    const src = img.src;
+                    // 检查是否是data URL
+                    if (src.startsWith('data:')) {
+                        // 提取扩展名
+                        const mimeMatch = src.match(/^data:image\/([^;]+)/);
+                        if (mimeMatch) {
+                            const ext = mimeMatch[1].split('+')[0]; // 处理像 image/jpeg;jpeg 这样的情况
+                            const filename = `image_${index+1}.${ext}`;
+                            imageFilenames.push({ original: src, filename: filename });
+                            
+                            // 替换内容中的图片引用
+                            noteContent = noteContent.replace(src, `./images/${filename}`);
+                        }
+                    }
+                });
+                
+                // 创建ZIP
+                const zip = new JSZip();
+                const noteFolder = zip.folder(noteTitle.replace(/[<>:"/\\|?*]/g, '_'));
+                
+                // 添加图片到images文件夹
+                if (imageFilenames.length > 0) {
+                    const imagesFolder = noteFolder.folder('images');
+                    
+                    imageFilenames.forEach(imgInfo => {
+                        // 解码data URL并添加到ZIP
+                        const base64Data = imgInfo.original.split(',')[1];
+                        if (base64Data) {
+                            try {
+                                const byteCharacters = atob(base64Data);
+                                const byteNumbers = new Array(byteCharacters.length);
+                                for (let i = 0; i < byteCharacters.length; i++) {
+                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                }
+                                const byteArray = new Uint8Array(byteNumbers);
+                                
+                                imagesFolder.file(imgInfo.filename, byteArray, { binary: true });
+                            } catch (e) {
+                                console.error('Error processing image:', imgInfo.filename, e);
+                            }
+                        }
+                    });
+                }
+                
+                // 生成Markdown内容
+                const markdownContent = `# ${noteTitle}\n\n创建时间: ${new Date(note.date).toLocaleString()}\n\n${noteContent}`;
+                
+                // 添加Markdown文件
+                noteFolder.file(`${noteTitle.replace(/[<>:"/\\|?*]/g, '_')}.md`, markdownContent);
+                
+                // 生成并下载ZIP
+                zip.generateAsync({ type: 'blob' })
+                    .then(function(content) {
+                        // 创建下载链接
+                        const url = URL.createObjectURL(content);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `${noteTitle.replace(/[<>:"/\\|?*]/g, '_')}_note.zip`;
+                        link.click();
+                        
+                        // 释放URL对象
+                        setTimeout(() => {
+                            URL.revokeObjectURL(url);
+                        }, 100);
+                        
+                        alert(`笔记已导出为ZIP格式，包含Markdown文件和图片资源。`);
+                    });
+                
+                // 清理临时容器
+                document.body.removeChild(container);
+            });
+            
+            // 当标题改变时自动保存
+            document.getElementById('noteTitle').addEventListener('input', debounce(function() {
+                note.title = this.value;
+                updateNoteInStorage();
+            }, 1000));
+            
+            // 编辑器内容改变时自动保存
+            quill.on('text-change', debounce(function(delta, oldDelta, source) {
+                if (source === 'user') {
+                    note.content = quill.root.innerHTML;
+                    updateNoteInStorage();
+                }
+            }, 1000));
+            
+            // 防抖函数
+            function debounce(func, wait) {
+                let timeout;
+                return function executedFunction(...args) {
+                    const later = () => {
+                        clearTimeout(timeout);
+                        func(...args);
+                    };
+                    clearTimeout(timeout);
+                    timeout = setTimeout(later, wait);
+                };
+            }
+            
+            // 更新笔记到存储的辅助函数
+            function updateNoteInStorage() {
+                const updatedNotes = notes.map(n => n.id === noteId ? note : n);
+                localStorage.setItem('notes', JSON.stringify(updatedNotes));
+            }
         });
     </script>
 </body>
